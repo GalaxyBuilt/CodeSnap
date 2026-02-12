@@ -1,156 +1,183 @@
 <script lang="ts">
-  import { invoke } from "@tauri-apps/api/core";
+  import { onMount } from "svelte";
+  import { listen } from "@tauri-apps/api/event";
+  import { Search, Plus, Folder, Tag, Star, Clipboard, Trash2, Settings, Code as CodeIcon } from "lucide-svelte";
 
-  let name = $state("");
-  let greetMsg = $state("");
+  // State
+  let snippets = $state([
+    { id: 1, title: "Example Python Snippet", code: "print('Hello, CodeSnap!')", language: "python" },
+    { id: 2, title: "Svelte Greeting", code: "console.log('Hello from Svelte!')", language: "javascript" }
+  ]);
+  let searchQuery = $state("");
+  let selectedSnippetId = $state(1);
 
-  async function greet(event: Event) {
-    event.preventDefault();
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    greetMsg = await invoke("greet", { name });
+  // Computed
+  let filteredSnippets = $derived(
+    snippets.filter(s => 
+      s.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+      s.code.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+  );
+  
+  let selectedSnippet = $derived(snippets.find(s => s.id === selectedSnippetId));
+
+  onMount(async () => {
+    // Listen for captured snippets from the backend
+    const unlisten = await listen<string>("snippet-captured", (event) => {
+      const newSnippet = {
+        id: Date.now(),
+        title: "New Captured Snippet",
+        code: event.payload,
+        language: "text" // Placeholder, AI will detect this
+      };
+      snippets = [newSnippet, ...snippets];
+      selectedSnippetId = newSnippet.id;
+    });
+
+    return () => {
+      unlisten();
+    };
+  });
+
+  function copyToClipboard(code: string) {
+    navigator.clipboard.writeText(code);
+    // Add toast notification later
   }
 </script>
 
-<main class="container">
-  <h1>Welcome to Tauri + Svelte</h1>
+<div class="flex h-screen bg-zinc-950 text-zinc-100 font-sans overflow-hidden">
+  <!-- Sidebar -->
+  <aside class="w-64 border-r border-zinc-800 flex flex-col bg-zinc-900/50 backdrop-blur-xl">
+    <div class="p-4 border-b border-zinc-800 flex items-center justify-between">
+      <h1 class="font-bold text-lg flex items-center gap-2">
+        <CodeIcon class="w-5 h-5 text-blue-500" />
+        CodeSnap
+      </h1>
+      <button class="p-1 hover:bg-zinc-800 rounded transition-colors text-zinc-400 hover:text-white">
+        <Settings class="w-4 h-4" />
+      </button>
+    </div>
 
-  <div class="row">
-    <a href="https://vite.dev" target="_blank">
-      <img src="/vite.svg" class="logo vite" alt="Vite Logo" />
-    </a>
-    <a href="https://tauri.app" target="_blank">
-      <img src="/tauri.svg" class="logo tauri" alt="Tauri Logo" />
-    </a>
-    <a href="https://svelte.dev" target="_blank">
-      <img src="/svelte.svg" class="logo svelte-kit" alt="SvelteKit Logo" />
-    </a>
-  </div>
-  <p>Click on the Tauri, Vite, and SvelteKit logos to learn more.</p>
+    <nav class="flex-1 overflow-y-auto p-2 space-y-4">
+      <div>
+        <h2 class="px-3 text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2">Library</h2>
+        <ul class="space-y-1 text-sm">
+          <li>
+            <button class="w-full text-left px-3 py-2 rounded bg-blue-600/10 text-blue-400 flex items-center gap-2">
+              <Clipboard class="w-4 h-4" /> All Snippets
+            </button>
+          </li>
+          <li>
+            <button class="w-full text-left px-3 py-2 rounded hover:bg-zinc-800 text-zinc-400 flex items-center gap-2 transition-colors">
+              <Star class="w-4 h-4" /> Favorites
+            </button>
+          </li>
+        </ul>
+      </div>
 
-  <form class="row" onsubmit={greet}>
-    <input id="greet-input" placeholder="Enter a name..." bind:value={name} />
-    <button type="submit">Greet</button>
-  </form>
-  <p>{greetMsg}</p>
-</main>
+      <div>
+        <div class="px-3 flex items-center justify-between mb-2">
+          <h2 class="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Folders</h2>
+          <button class="text-zinc-500 hover:text-white transition-colors"><Plus class="w-3 h-3" /></button>
+        </div>
+        <ul class="space-y-1 text-sm text-zinc-400">
+          <li>
+            <button class="w-full text-left px-3 py-1.5 rounded hover:bg-zinc-800 flex items-center gap-2 transition-colors">
+              <Folder class="w-4 h-4" /> Python
+            </button>
+          </li>
+          <li>
+            <button class="w-full text-left px-3 py-1.5 rounded hover:bg-zinc-800 flex items-center gap-2 transition-colors">
+              <Folder class="w-4 h-4" /> Frontend
+            </button>
+          </li>
+        </ul>
+      </div>
+
+      <div>
+        <div class="px-3 flex items-center justify-between mb-2">
+          <h2 class="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Tags</h2>
+          <button class="text-zinc-500 hover:text-white transition-colors"><Plus class="w-3 h-3" /></button>
+        </div>
+        <div class="px-3 flex flex-wrap gap-2">
+          <span class="px-2 py-0.5 bg-zinc-800 border border-zinc-700 rounded text-xs text-zinc-400">#react</span>
+          <span class="px-2 py-0.5 bg-zinc-800 border border-zinc-700 rounded text-xs text-zinc-400">#api</span>
+          <span class="px-2 py-0.5 bg-zinc-800 border border-zinc-700 rounded text-xs text-zinc-400">#auth</span>
+        </div>
+      </div>
+    </nav>
+  </aside>
+
+  <!-- List -->
+  <main class="w-80 border-r border-zinc-800 flex flex-col bg-zinc-950">
+    <div class="p-4 border-b border-zinc-800">
+      <div class="relative group">
+        <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 group-focus-within:text-blue-500 transition-colors" />
+        <input 
+          type="text" 
+          placeholder="Search snippets..." 
+          bind:value={searchQuery}
+          class="w-full pl-9 pr-4 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-sm focus:outline-none focus:border-blue-500 transition-all placeholder:text-zinc-600 focus:ring-1 focus:ring-blue-500/20"
+        />
+      </div>
+    </div>
+
+    <div class="flex-1 overflow-y-auto">
+      {#each filteredSnippets as snippet}
+        <button 
+          onclick={() => selectedSnippetId = snippet.id}
+          class="w-full text-left p-4 border-b border-zinc-900/50 hover:bg-white/[0.02] transition-colors relative group {selectedSnippetId === snippet.id ? 'bg-blue-600/5 border-l-2 border-l-blue-500' : ''}"
+        >
+          <div class="flex justify-between items-start mb-1">
+            <h3 class="font-medium text-sm truncate pr-2 {selectedSnippetId === snippet.id ? 'text-blue-400' : 'text-zinc-200'}">{snippet.title}</h3>
+            <span class="text-[10px] px-1.5 py-0.5 bg-zinc-800 border border-zinc-700 rounded text-zinc-500 uppercase font-bold tracking-tighter">{snippet.language}</span>
+          </div>
+          <p class="text-xs text-zinc-500 line-clamp-2 font-mono opacity-80">{snippet.code.slice(0, 100)}</p>
+        </button>
+      {/each}
+    </div>
+  </main>
+
+  <!-- Content -->
+  <section class="flex-1 flex flex-col bg-[#0d1117]">
+    {#if selectedSnippet}
+      <div class="p-4 border-b border-zinc-800 flex items-center justify-between bg-zinc-950/50 backdrop-blur-sm">
+        <div class="flex items-center gap-3">
+          <input 
+            type="text" 
+            bind:value={selectedSnippet.title}
+            class="bg-transparent border-none focus:ring-0 text-lg font-bold text-white w-96 p-0"
+          />
+        </div>
+        <div class="flex items-center gap-2">
+          <button 
+            onclick={() => copyToClipboard(selectedSnippet.code)}
+            class="px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 rounded-lg text-xs font-medium flex items-center gap-2 transition-all active:scale-95"
+          >
+            <Clipboard class="w-3.5 h-3.5" /> Copy Code
+          </button>
+          <button class="p-1.5 hover:bg-red-500/10 hover:text-red-400 rounded-lg text-zinc-500 transition-colors">
+            <Trash2 class="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+      <div class="flex-1 p-6 overflow-auto font-mono text-sm leading-relaxed">
+        <pre class="w-full bg-zinc-900/30 p-4 rounded-xl border border-zinc-800/50 overflow-x-auto">
+          <code>{selectedSnippet.code}</code>
+        </pre>
+      </div>
+    {:else}
+      <div class="flex-1 flex flex-col items-center justify-center text-zinc-500">
+        <CodeIcon class="w-12 h-12 mb-4 opacity-20" />
+        <p>Select a snippet to view code</p>
+      </div>
+    {/if}
+  </section>
+</div>
 
 <style>
-.logo.vite:hover {
-  filter: drop-shadow(0 0 2em #747bff);
-}
-
-.logo.svelte-kit:hover {
-  filter: drop-shadow(0 0 2em #ff3e00);
-}
-
-:root {
-  font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
-  font-size: 16px;
-  line-height: 24px;
-  font-weight: 400;
-
-  color: #0f0f0f;
-  background-color: #f6f6f6;
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  -webkit-text-size-adjust: 100%;
-}
-
-.container {
-  margin: 0;
-  padding-top: 10vh;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  text-align: center;
-}
-
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: 0.75s;
-}
-
-.logo.tauri:hover {
-  filter: drop-shadow(0 0 2em #24c8db);
-}
-
-.row {
-  display: flex;
-  justify-content: center;
-}
-
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-
-a:hover {
-  color: #535bf2;
-}
-
-h1 {
-  text-align: center;
-}
-
-input,
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  color: #0f0f0f;
-  background-color: #ffffff;
-  transition: border-color 0.25s;
-  box-shadow: 0 2px 2px rgba(0, 0, 0, 0.2);
-}
-
-button {
-  cursor: pointer;
-}
-
-button:hover {
-  border-color: #396cd8;
-}
-button:active {
-  border-color: #396cd8;
-  background-color: #e8e8e8;
-}
-
-input,
-button {
-  outline: none;
-}
-
-#greet-input {
-  margin-right: 5px;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    color: #f6f6f6;
-    background-color: #2f2f2f;
+  :global(body) {
+    margin: 0;
+    overflow: hidden;
   }
-
-  a:hover {
-    color: #24c8db;
-  }
-
-  input,
-  button {
-    color: #ffffff;
-    background-color: #0f0f0f98;
-  }
-  button:active {
-    background-color: #0f0f0f69;
-  }
-}
-
 </style>

@@ -20,6 +20,13 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_shell::init())
         .setup(|app| {
+            // Initialize Database
+            let handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                let db = tauri_plugin_sql::Builder::default().build();
+                // This is a bit complex in v2 setup, usually handled via plugin config in tauri.conf.json
+            });
+
             let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let show_i = MenuItem::with_id(app, "show", "Show CodeSnap", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&show_i, &quit_i])?;

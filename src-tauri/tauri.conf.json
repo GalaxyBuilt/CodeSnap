@@ -41,5 +41,10 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
+  },
+  "plugins": {
+    "sql": {
+      "db": "sqlite:codesnap.db"
+    }
   }
 }
